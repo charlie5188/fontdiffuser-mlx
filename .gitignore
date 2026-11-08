@@ -7,4 +7,7 @@ __pycache__/
 runs/
 out/
 .DS_Store
+.build/
+.swiftpm/
+Package.resolved
 *.egg-info/

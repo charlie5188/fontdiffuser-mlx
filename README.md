@@ -10,6 +10,8 @@ style of a reference glyph, and fine-tune the model on a few dozen glyphs of one
   fine-tuning with the official PyTorch code (see [Speed and memory](#speed-and-memory)).
 - **Generation.** 0.86 s per character on an M4 Pro (8 at a time, 15 steps). The official PyTorch pipeline takes
   2.4 s (one at a time, 20 steps); PyTorch batched the same way takes 0.98 s.
+- **Swift package.** The same model, sampling and fine-tuning in MLX Swift, so a Mac app can do both without
+  Python. Checked against the Python version step by step (see [Swift](#swift-for-apps)).
 - **Optional Core ML.** Put fine-tuned weights into a Core ML file without re-converting the model, for apps that
   generate with Core ML (see [Core ML](#core-ml-optional)).
 
@@ -113,6 +115,79 @@ denoiser call is about 1.4× faster than in MLX. On this Mac the Neural Engine i
 better on Macs with fewer GPU cores (not tested). The first load of a package takes about 20 s while macOS compiles
 it; later loads are fast.
 
+## Swift (for apps)
+
+The same model, sampler and fine-tuning in [MLX Swift](https://github.com/ml-explore/mlx-swift), as a Swift
+package (`FontDiffuserMLX`) and a command-line tool (`fdmlx-swift`). It reads and writes the same `.safetensors`
+files: weights converted or fine-tuned in Python load in Swift, and the other way round.
+
+In an app, add the package `https://github.com/charlie5188/fontdiffuser-mlx` (product `FontDiffuserMLX`):
+
+```swift
+import FontDiffuserMLX
+import MLX
+
+let model = FontDiffuser()
+try model.load(weights: weightsURL)             // from `fdmlx convert`, or fine-tuned
+model.train(false)
+let content = try GlyphFont(url: kaiXinSongURL).glyphs("我是道谢")
+let style = try styleReference(fromImage: photoURL)   // or try GlyphFont(url: fontURL).glyphs("永")
+let noise = MLXRandom.normal([4, 96, 96, 3])
+let glyphs = Sampler(model: model)(content: content, style: style, noise: noise, steps: 15)
+try glyphs.writePNG(0, to: outputURL)
+```
+
+To fine-tune, create a `FineTuner(model:target:content:)` with the training glyphs and call `step()` once per
+step. `swift/fdmlx-swift/main.swift` shows the whole loop, with evaluation sheets.
+
+The command-line tool has the same options as the Python one:
+
+```bash
+swift/build-without-xcode.sh
+.build/release/fdmlx-swift generate --weights fontdiffuser.safetensors --content-font KaiXinSongA.ttf \
+  --font MyFont.ttf --ref 永 --chars 我是道谢森风问家 --out out/
+.build/release/fdmlx-swift finetune --weights fontdiffuser.safetensors --content-font KaiXinSongA.ttf \
+  --font MyFont.ttf --train train-chars.txt --out runs/myfont --test 我是道谢森风问家 --eval-refs 国永
+```
+
+Building: MLX Swift compiles its GPU kernels with the Metal compiler that comes with Xcode. With Xcode, build as
+usual (the standard route for MLX Swift; not tested here). With only the Command Line Tools,
+`swift/build-without-xcode.sh` builds everything else and fetches the same kernels, prebuilt, from the official MLX
+Python wheel of the same MLX version. This is how the Swift version was built and tested.
+
+Checked against the Python version with the same weights and inputs (`swift/checks`, see [Checks](#checks)):
+
+| Check | Swift vs Python |
+|---|---|
+| Resizing glyphs to 96 px (Pillow's bilinear filter) | identical |
+| Encoders, noise prediction | max relative difference 3e-6 |
+| Sampling, 15 steps, same starting noise | 0.02 % of pixels differ, by 1 grey level of 255 |
+| Training loss / all 832 gradients | 5e-7 / median 6e-6 |
+| One training step (2 passes, clipping, AdamW, spectral norm) | same loss, every weight moved the same way |
+| Glyph rendering (Core Text instead of FreeType) | mean difference 0.5 grey level of 255, ink overlap 0.987 |
+
+End to end, on the same M4 Pro, idle, measured the same day:
+
+| | Python | Swift |
+|---|---|---|
+| Fine-tuning Smiley Sans, 84 glyphs, 800 steps | 29 min, 7.3 GB | 28 min, 7.1 GB |
+| Overlap with the real font, 8 held-out characters, ref 国 / 永 | 0.700 / 0.693 | 0.705 / 0.696 |
+| Structure score, ref 国 / 永 | 0.969 / 0.959 | 0.964 / 0.951 |
+| Generation, 8 at a time, 15 steps (median of 3 runs) | 0.89 s per character | 0.89 s per character |
+
+The two fine-tuning runs drew their training samples in different random orders, so the small score differences
+are run-to-run variation. With the same weights and starting noise, the glyphs the two versions draw overlap 0.995;
+the rest is the glyph rendering.
+
+Differences from the Python version:
+
+- Glyphs are rendered with Core Text, so edge anti-aliasing differs slightly (table above).
+- Random numbers come from MLX's generator and a seeded generator of its own, not numpy's, so the same `--seed`
+  gives different starting noise and a different training order than in Python. To compare runs, pass the same
+  noise as a `.npy` file (`--noise`, `--eval-noise`).
+- Not in Swift: converting PyTorch checkpoints (do it once with `fdmlx convert`) and the Core ML weight swap
+  (plain byte writes at the offsets in the weights map; see [Core ML](#core-ml-optional)).
+
 ## How close is it to the original?
 
 `tests/parity.py` runs both on the same inputs with the official weights (PyTorch fp32 on the CPU, MLX fp32 on the GPU):
@@ -197,6 +272,9 @@ For development; they need PyTorch, torchvision, diffusers 0.22 and a clone of t
 - `tests/parity.py`: MLX against the official code, layer outputs and all gradients (the table above).
 - `tests/gen_check.py`: generate from the same glyphs and starting noise as a PyTorch run, to compare sheets.
 - `tests/bench_gen.py`: generation timing. `tests/coreml_check.py`: Core ML against MLX, output and timing.
+- Swift against Python (needs only the Python package): `tests/swift_fixtures.py` writes the Python results
+  (about 800 MB), then `.build/release/fdmlx-swift-check` with the same arguments plus `--fixtures` compares
+  rendering, encoders, sampling, gradients and one training step (the Swift table above).
 
 ## License
 
