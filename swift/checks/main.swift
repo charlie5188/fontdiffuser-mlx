@@ -26,7 +26,7 @@ func rel(_ a: MLXArray, _ b: MLXArray) -> Float { maxAbs(a - b) / max(maxAbs(b),
 func report(_ name: String, _ value: Float, limit: Float, _ unit: String = "max relative difference") {
     let ok = value <= limit
     if !ok { failures += 1 }
-    print(String(format: "%@  %-44@ %@ %.2g (limit %.0g)", ok ? "ok  " : "FAIL", name, unit, value, limit))
+    print(String(format: "%@  %-44@ %@ %.2g (limit %.2g)", ok ? "ok  " : "FAIL", name, unit, value, limit))
 }
 func freshModel(training: Bool) throws -> FontDiffuser {
     let m = FontDiffuser()
@@ -119,7 +119,10 @@ do {
     }
     errs.sort { $0.0 < $1.0 }
     report("gradients (\(errs.count)): median", errs[errs.count / 2].0, limit: 1e-4)
-    report("gradients: worst", errs.last!.0, limit: 0.1)
+    // The worst ones are in the deformable convolutions' offset branch: sums of large terms that nearly cancel, so
+    // tiny kernel differences show up there first (the official fp32 code is 5 % off fp64 there too). Xcode builds
+    // compile MLX's GPU kernels with fast math, which MLX's own builds do not; that moves the worst to about 10 %.
+    report("gradients: worst", errs.last!.0, limit: 0.15)
     print("      worst: \(errs.last!.1)")
 }
 

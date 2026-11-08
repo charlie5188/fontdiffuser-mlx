@@ -4,7 +4,7 @@
 # MLX Swift compiles its GPU kernels with Apple's Metal compiler, which comes with Xcode. Without it, this script
 # builds everything else and puts the same kernels, prebuilt, next to the programs: the shader library
 # (mlx.metallib) from the official MLX Python wheel of the same MLX version. MLX looks for it there first.
-# With Xcode installed, use `swift build -c release` or Xcode instead.
+# With Xcode and its Metal Toolchain installed, use `swift build -c release` or Xcode instead.
 set -eu
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)

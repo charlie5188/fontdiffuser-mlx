@@ -152,17 +152,26 @@ step. `swift/fdmlx-swift/main.swift` shows the whole loop, with evaluation sheet
 The command-line tool has the same options as the Python one:
 
 ```bash
-swift/build-without-xcode.sh
+swift build -c release        # with Xcode; without it, swift/build-without-xcode.sh (see below)
 .build/release/fdmlx-swift generate --weights fontdiffuser.safetensors --content-font KaiXinSongA.ttf \
   --font MyFont.ttf --ref 永 --chars 我是道谢森风问家 --out out/
 .build/release/fdmlx-swift finetune --weights fontdiffuser.safetensors --content-font KaiXinSongA.ttf \
   --font MyFont.ttf --train train-chars.txt --out runs/myfont --test 我是道谢森风问家 --eval-refs 国永
 ```
 
-Building: MLX Swift compiles its GPU kernels with the Metal compiler that comes with Xcode. With Xcode, build as
-usual (the standard route for MLX Swift; not tested here). With only the Command Line Tools,
-`swift/build-without-xcode.sh` builds everything else and fetches the same kernels, prebuilt, from the official MLX
-Python wheel of the same MLX version. This is how the Swift version was built and tested.
+Building: MLX Swift compiles its GPU kernels with Apple's Metal compiler. Since Xcode 26 the compiler is a separate
+download: in Xcode, Settings → Components → Metal Toolchain, or `xcodebuild -downloadComponent MetalToolchain`
+(about 840 MB). Then build in Xcode, or with `swift build -c release` (the command-line tools must point at Xcode:
+`xcode-select -p` should print a path inside Xcode.app).
+
+With only the Command Line Tools, `swift/build-without-xcode.sh` builds everything else and fetches the same kernels,
+prebuilt, from the official MLX Python wheel of the same MLX version.
+
+Both routes were tested. From the same starting noise they draw the same glyphs (0.007 % of pixels differ) at the
+same speed. One difference: Xcode compiles MLX's kernels with Apple's default fast math, which MLX's own builds turn
+off. So an Xcode build is a little further from Python in the most sensitive gradients (worst 10 % instead of 8 %,
+in the offset branch; see [How close is it](#how-close-is-it-to-the-original)). The training step check still
+passes: every weight moves the same way.
 
 Checked against the Python version with the same weights and inputs (`swift/checks`, see [Checks](#checks)):
 
