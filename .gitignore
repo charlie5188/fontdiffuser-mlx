@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.safetensors
+*.pth
+*.mlpackage/
+*.weights-map.json
+runs/
+out/
+.DS_Store
+*.egg-info/

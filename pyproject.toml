@@ -1,0 +1,21 @@
+[project]
+name = "fontdiffuser-mlx"
+version = "0.1.0"
+description = "FontDiffuser (few-shot Chinese font generation) on Apple silicon with MLX: generate and fine-tune on a Mac, no PyTorch"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = ["mlx>=0.29", "numpy", "pillow", "fonttools"]
+
+[project.optional-dependencies]
+coreml = ["coremltools>=8"]
+
+[project.scripts]
+fdmlx = "fdmlx.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["fdmlx"]
