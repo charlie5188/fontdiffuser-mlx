@@ -15,6 +15,15 @@ style of a reference glyph, and fine-tune the model on a few dozen glyphs of one
 - **Optional Core ML.** Put fine-tuned weights into a Core ML file without re-converting the model, for apps that
   generate with Core ML (see [Core ML](#core-ml-optional)).
 
+**Which part do you need?**
+
+- To try it or run experiments: the Python package.
+- In a Mac app: the Swift package. It fine-tunes and generates on its own, with no Python on the user's Mac. You need
+  Python only once, at development time, to convert the official weights.
+- Core ML is optional. It cannot fine-tune. It only makes generation faster (0.65 instead of 0.86 s per character on
+  an M4 Pro). The cost is a template that you make with Python at development time, and a weight swap that is not an
+  official Core ML feature.
+
 This is a research tool, licensed for non-commercial research only, like the original (see [License](#license)).
 
 ![Eight characters the model never saw in training: the real Smiley Sans, the released model, and the model after 29 minutes of fine-tuning in MLX](docs/finetune-smiley.png)
